@@ -11,23 +11,29 @@ app.use(express.static(path.join(__dirname, 'public')));
 /**
  * Check credit for a single Dreamina account using Playwright + API interception
  */
-async function checkCredit(email, password, sendProgress) {
-  let browser;
+async function checkCredit(browser, email, password, sendProgress) {
+  let context;
   try {
-    sendProgress('Đang khởi tạo trình duyệt...');
+    sendProgress('Đang tạo phiên duyệt web...');
 
-    browser = await chromium.launch({
-      headless: true,
-      args: ['--no-sandbox', '--disable-setuid-sandbox'],
-    });
-    const context = await browser.newContext({
+    context = await browser.newContext({
       viewport: { width: 1280, height: 800 },
       userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Safari/537.36',
       locale: 'en-US',
       timezoneId: 'Asia/Ho_Chi_Minh',
     });
     const page = await context.newPage();
-    page.setDefaultTimeout(45000);
+    page.setDefaultTimeout(30000);
+
+    // Block unnecessary resources to speed up
+    await context.route('**/*', (route) => {
+      const type = route.request().resourceType();
+      if (['image', 'media', 'font', 'stylesheet'].includes(type)) {
+        route.abort();
+      } else {
+        route.continue();
+      }
+    });
 
     // ================================
     // Set up API response interceptor
@@ -94,9 +100,9 @@ async function checkCredit(email, password, sendProgress) {
     sendProgress('Đang truy cập Dreamina...');
     await page.goto('https://dreamina.capcut.com/ai-tool/home?need_login=true', {
       waitUntil: 'domcontentloaded',
-      timeout: 45000,
+      timeout: 30000,
     });
-    await page.waitForTimeout(5000);
+    await page.waitForTimeout(2000);
 
     // ================================
     // STEP 2: Click "Continue with email"
@@ -376,8 +382,8 @@ async function checkCredit(email, password, sendProgress) {
       error: err.message || 'Lỗi không xác định',
     };
   } finally {
-    if (browser) {
-      try { await browser.close(); } catch (e) { /* ignore */ }
+    if (context) {
+      try { await context.close(); } catch (e) { /* ignore */ }
     }
   }
 }
@@ -406,6 +412,22 @@ app.post('/api/check-credit', async (req, res) => {
   const maxConcurrent = Math.min(parseInt(threads) || 3, 10);
   let currentIndex = 0;
 
+  let browser;
+  try {
+    browser = await chromium.launch({
+      headless: true,
+      args: [
+        '--no-sandbox', 
+        '--disable-setuid-sandbox',
+        '--disable-dev-shm-usage',
+        '--disable-gpu'
+      ],
+    });
+  } catch (err) {
+    sendEvent({ type: 'done' });
+    return res.end();
+  }
+
   const worker = async () => {
     while (currentIndex < accounts.length) {
       const i = currentIndex++;
@@ -431,7 +453,7 @@ app.post('/api/check-credit', async (req, res) => {
         sendEvent({ type: 'progress', index: i, email, status });
       };
 
-      const result = await checkCredit(email, password, sendProgress);
+      const result = await checkCredit(browser, email, password, sendProgress);
 
       sendEvent({
         type: 'result',
@@ -448,6 +470,10 @@ app.post('/api/check-credit', async (req, res) => {
   }
 
   await Promise.all(workers);
+
+  if (browser) {
+    try { await browser.close(); } catch (e) {}
+  }
 
   sendEvent({ type: 'done' });
   res.end();
