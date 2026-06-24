@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Deramina Credit Checker</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="app">
+    <!-- Animated background -->
+    <div class="bg-gradient"></div>
+    <div class="bg-orb bg-orb-1"></div>
+    <div class="bg-orb bg-orb-2"></div>
+    <div class="bg-orb bg-orb-3"></div>
+
+    <!-- Header -->
+    <header class="header">
+      <div class="logo">
+        <div class="logo-icon">
+          <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
+            <path d="M14 2L2 8v12l12 6 12-6V8L14 2z" stroke="url(#logoGrad)" stroke-width="2" fill="none"/>
+            <path d="M14 8l-6 3v6l6 3 6-3v-6l-6-3z" fill="url(#logoGrad)" opacity="0.3"/>
+            <circle cx="14" cy="14" r="3" fill="url(#logoGrad)"/>
+            <defs>
+              <linearGradient id="logoGrad" x1="0" y1="0" x2="28" y2="28">
+                <stop stop-color="#6C63FF"/>
+                <stop offset="1" stop-color="#00D4AA"/>
+              </linearGradient>
+            </defs>
+          </svg>
+        </div>
+        <span class="logo-text">Deramina <span class="logo-highlight">Checker</span></span>
+      </div>
+      <div class="header-stats" id="headerStats" style="display: none;">
+        <div class="stat-pill">
+          <span class="stat-dot stat-dot-success"></span>
+          <span id="statSuccess">0</span> Live
+        </div>
+        <div class="stat-pill">
+          <span class="stat-dot stat-dot-fail"></span>
+          <span id="statFail">0</span> Die
+        </div>
+        <div class="stat-pill stat-pill-total">
+          <span id="statTotal">0</span> Total
+        </div>
+      </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="main">
+      <!-- Input Section -->
+      <section class="input-section" id="inputSection">
+        <div class="section-header">
+          <h1>Check Credit Dreamina</h1>
+          <p class="subtitle">Nhập danh sách tài khoản theo định dạng <code>email|password</code>, mỗi dòng 1 tài khoản</p>
+        </div>
+
+        <div class="input-container">
+          <div class="textarea-wrapper">
+            <textarea
+              id="accountInput"
+              placeholder="email1@example.com|password1&#10;email2@example.com|password2&#10;email3@example.com|password3"
+              spellcheck="false"
+            ></textarea>
+            <div class="textarea-footer">
+              <div style="display: flex; align-items: center; gap: 8px;">
+                <label for="threadCount" style="color: var(--text-secondary); font-size: 0.85rem;">Số luồng chạy đồng thời:</label>
+                <input type="number" id="threadCount" value="3" min="1" max="10" style="width: 50px; background: rgba(255,255,255,0.05); border: 1px solid var(--border-subtle); color: var(--text-primary); border-radius: 4px; padding: 4px; outline: none; font-family: inherit;">
+              </div>
+              <span class="line-count" id="lineCount">0 tài khoản</span>
+              <div class="textarea-actions">
+                <button class="btn-icon" id="btnPaste" title="Paste từ clipboard">
+                  <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                    <rect x="4" y="4" width="10" height="10" rx="2" stroke="currentColor" stroke-width="1.5"/>
+                    <path d="M2 10V3a1 1 0 011-1h7" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+                  </svg>
+                </button>
+                <button class="btn-icon" id="btnClear" title="Xóa tất cả">
+                  <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                    <path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+                  </svg>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <button class="btn-check" id="btnCheck">
+            <span class="btn-check-text">
+              <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                <circle cx="9" cy="9" r="6" stroke="currentColor" stroke-width="2"/>
+                <path d="M13.5 13.5L17 17" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+              </svg>
+              Bắt đầu kiểm tra
+            </span>
+            <span class="btn-check-loading" style="display: none;">
+              <div class="spinner"></div>
+              Đang xử lý...
+            </span>
+          </button>
+        </div>
+      </section>
+
+      <!-- Progress Section -->
+      <section class="progress-section" id="progressSection" style="display: none;">
+        <div class="progress-bar-container">
+          <div class="progress-bar" id="progressBar"></div>
+        </div>
+        <div class="progress-text" id="progressText">Chuẩn bị...</div>
+      </section>
+
+      <!-- Results Section -->
+      <section class="results-section" id="resultsSection" style="display: none;">
+        <div class="results-header">
+          <h2>Kết quả</h2>
+          <div class="results-actions">
+            <button class="btn-secondary" id="btnExportLive">
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                <path d="M2 10v3a1 1 0 001 1h10a1 1 0 001-1v-3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+                <path d="M8 2v8M5 7l3 3 3-3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+              Export Live
+            </button>
+            <button class="btn-secondary" id="btnExportAll">
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                <path d="M2 10v3a1 1 0 001 1h10a1 1 0 001-1v-3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+                <path d="M8 2v8M5 7l3 3 3-3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+              Export All
+            </button>
+          </div>
+        </div>
+
+        <div class="results-grid" id="resultsGrid"></div>
+      </section>
+    </main>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
