@@ -11,12 +11,22 @@ app.use(express.static(path.join(__dirname, 'public')));
 /**
  * Check credit for a single Dreamina account using Playwright + API interception
  */
-async function checkCredit(browser, email, password, sendProgress) {
-  let context;
+async function checkCredit(email, password, sendProgress) {
+  let browser;
   try {
     sendProgress('Đang tạo phiên duyệt web...');
 
-    context = await browser.newContext({
+    browser = await chromium.launch({
+      headless: true,
+      args: [
+        '--no-sandbox', 
+        '--disable-setuid-sandbox',
+        '--disable-dev-shm-usage',
+        '--disable-gpu'
+      ],
+    });
+    
+    const context = await browser.newContext({
       viewport: { width: 1280, height: 800 },
       userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Safari/537.36',
       locale: 'en-US',
@@ -25,10 +35,10 @@ async function checkCredit(browser, email, password, sendProgress) {
     const page = await context.newPage();
     page.setDefaultTimeout(30000);
 
-    // Block unnecessary resources to speed up
+    // Block unnecessary resources to speed up (only images and media to avoid breaking React)
     await context.route('**/*', (route) => {
       const type = route.request().resourceType();
-      if (['image', 'media', 'font', 'stylesheet'].includes(type)) {
+      if (['image', 'media'].includes(type)) {
         route.abort();
       } else {
         route.continue();
@@ -102,7 +112,6 @@ async function checkCredit(browser, email, password, sendProgress) {
       waitUntil: 'domcontentloaded',
       timeout: 30000,
     });
-    await page.waitForTimeout(2000);
 
     // ================================
     // STEP 2: Click "Continue with email"
@@ -112,7 +121,7 @@ async function checkCredit(browser, email, password, sendProgress) {
       const continueWithEmail = await page.waitForSelector('text=Continue with email', { timeout: 10000 });
       if (continueWithEmail) {
         await continueWithEmail.click({ force: true });
-        await page.waitForTimeout(2000);
+        await page.waitForTimeout(1000);
       }
     } catch (e) {
       // Might already be on email form, continue
@@ -135,7 +144,9 @@ async function checkCredit(browser, email, password, sendProgress) {
 
     await emailInput.click({ force: true });
     await page.waitForTimeout(200);
-    await emailInput.fill(email);
+    // Use type instead of fill to simulate real human typing (triggers React onChange properly)
+    await emailInput.fill('');
+    await emailInput.type(email, { delay: 15 });
 
     // Find password input
     let passwordInput = null;
@@ -149,24 +160,35 @@ async function checkCredit(browser, email, password, sendProgress) {
 
     await passwordInput.click({ force: true });
     await page.waitForTimeout(200);
-    await passwordInput.fill(password);
+    // Use type to simulate human typing
+    await passwordInput.fill('');
+    await passwordInput.type(password, { delay: 15 });
 
     // ================================
     // STEP 4: Submit login
     // ================================
     sendProgress('Đang đăng nhập...');
-    let clicked = false;
-    for (const sel of ['button:has-text("Continue")', 'button:has-text("Log in")', 'button[type="submit"]']) {
-      try {
-        const btn = await page.$(sel);
-        if (btn) {
-          await btn.click({ force: true });
-          clicked = true;
-          break;
-        }
-      } catch (e) { /* try next */ }
+    
+    // Wait for React to validate password and enable the Continue button
+    await page.waitForTimeout(500);
+    
+    // Press Enter to submit (most reliable)
+    await passwordInput.press('Enter');
+    await page.waitForTimeout(500);
+
+    // Fallback: If still on login page, try clicking explicitly
+    const stillOnLoginCheck = await page.$('input[placeholder="Enter email"]');
+    if (stillOnLoginCheck) {
+      for (const sel of ['button:has-text("Continue")', 'button:has-text("Log in")', 'button[type="submit"]']) {
+        try {
+          const btn = await page.$(sel);
+          if (btn) {
+            await btn.click();
+            break;
+          }
+        } catch (e) { /* try next */ }
+      }
     }
-    if (!clicked) await passwordInput.press('Enter');
 
     // ================================
     // STEP 5: Wait for login and API responses
@@ -181,7 +203,7 @@ async function checkCredit(browser, email, password, sendProgress) {
       waitAttempts++;
 
       // Check for login errors
-      if (waitAttempts === 5) {
+      if (waitAttempts === 12) {
         const stillOnLogin = await page.$('input[placeholder="Enter email"]');
         if (stillOnLogin) {
           const isVisible = await stillOnLogin.isVisible();
@@ -382,8 +404,8 @@ async function checkCredit(browser, email, password, sendProgress) {
       error: err.message || 'Lỗi không xác định',
     };
   } finally {
-    if (context) {
-      try { await context.close(); } catch (e) { /* ignore */ }
+    if (browser) {
+      try { await browser.close(); } catch (e) { /* ignore */ }
     }
   }
 }
@@ -409,30 +431,20 @@ app.post('/api/check-credit', async (req, res) => {
 
   sendEvent({ type: 'start', total: accounts.length });
 
-  const maxConcurrent = Math.min(parseInt(threads) || 3, 10);
+  // Limit concurrency to 3 to prevent RAM crash on 512MB VPS
+  const maxConcurrent = Math.min(parseInt(threads) || 2, 3);
   let currentIndex = 0;
 
-  let browser;
-  try {
-    browser = await chromium.launch({
-      headless: true,
-      args: [
-        '--no-sandbox', 
-        '--disable-setuid-sandbox',
-        '--disable-dev-shm-usage',
-        '--disable-gpu'
-      ],
-    });
-  } catch (err) {
-    sendEvent({ type: 'done' });
-    return res.end();
-  }
-
-  const worker = async () => {
+  const worker = async (workerId) => {
     while (currentIndex < accounts.length) {
       const i = currentIndex++;
       const raw = accounts[i].trim();
       if (!raw) continue;
+
+      // Stagger start to avoid triggering Capcut's DDoS firewall
+      if (workerId > 0 && i < maxConcurrent) {
+        await new Promise(r => setTimeout(r, workerId * 800));
+      }
 
       const parts = raw.split('|');
       if (parts.length < 2) {
@@ -453,7 +465,7 @@ app.post('/api/check-credit', async (req, res) => {
         sendEvent({ type: 'progress', index: i, email, status });
       };
 
-      const result = await checkCredit(browser, email, password, sendProgress);
+      const result = await checkCredit(email, password, sendProgress);
 
       sendEvent({
         type: 'result',
@@ -466,14 +478,10 @@ app.post('/api/check-credit', async (req, res) => {
 
   const workers = [];
   for (let i = 0; i < maxConcurrent; i++) {
-    workers.push(worker());
+    workers.push(worker(i));
   }
 
   await Promise.all(workers);
-
-  if (browser) {
-    try { await browser.close(); } catch (e) {}
-  }
 
   sendEvent({ type: 'done' });
   res.end();

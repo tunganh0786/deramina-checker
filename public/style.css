@@ -801,3 +801,38 @@ textarea::placeholder {
     transform: translateY(0) scale(1);
   }
 }
+
+/* ============================
+   Simple Results
+   ============================ */
+.simple-result {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 16px;
+  border-radius: var(--radius-sm);
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  font-family: 'SF Mono', 'Fira Code', monospace;
+  font-size: 0.9rem;
+  color: var(--text-primary);
+  animation: cardSlideIn 0.3s ease backwards;
+}
+
+.simple-result.checking {
+  border-left: 3px solid var(--accent-primary);
+  color: var(--text-secondary);
+}
+
+.simple-result.success {
+  border-left: 3px solid var(--success);
+}
+
+.simple-result.fail {
+  border-left: 3px solid var(--danger);
+}
+
+.simple-result .detail {
+  color: var(--text-tertiary);
+  font-size: 0.8rem;
+}

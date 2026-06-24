@@ -194,21 +194,9 @@ function updateProgress(current, total, text) {
 
 function createResultCard(index, email) {
   const card = document.createElement('div');
-  card.className = 'result-card checking';
+  card.className = 'simple-result checking';
   card.id = `result-${index}`;
-  card.style.animationDelay = `${index * 0.05}s`;
-
-  card.innerHTML = `
-    <div class="result-status checking">
-      <div class="status-spinner"></div>
-    </div>
-    <div class="result-info">
-      <div class="result-email">${escapeHtml(email)}</div>
-      <div class="result-detail">Đang chờ...</div>
-    </div>
-    <div class="result-credits"></div>
-  `;
-
+  card.innerHTML = `${escapeHtml(email)} | <span class="detail">Đang chờ...</span>`;
   DOM.resultsGrid.appendChild(card);
 }
 
@@ -216,7 +204,7 @@ function updateCardStatus(index, status, detail) {
   const card = document.getElementById(`result-${index}`);
   if (!card) return;
 
-  const detailEl = card.querySelector('.result-detail');
+  const detailEl = card.querySelector('.detail');
   if (detailEl) detailEl.textContent = detail;
 }
 
@@ -224,66 +212,16 @@ function updateCardSuccess(index, data) {
   const card = document.getElementById(`result-${index}`);
   if (!card) return;
 
-  card.className = 'result-card success';
-
-  // Status icon
-  const statusEl = card.querySelector('.result-status');
-  statusEl.className = 'result-status success';
-  statusEl.innerHTML = `
-    <svg class="status-icon-svg" viewBox="0 0 18 18" fill="none">
-      <path d="M4 9l3.5 3.5L14 5" stroke="#00D4AA" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
-    </svg>
-  `;
-
-  // Info
-  const infoEl = card.querySelector('.result-info');
-  const planClass = getPlanClass(data.plan);
-  infoEl.innerHTML = `
-    <div class="result-email">${escapeHtml(data.email)}</div>
-    <div class="result-detail">
-      ${data.username !== 'N/A' ? data.username : ''}
-      ${data.plan !== 'N/A' ? `<span class="plan-tag ${planClass}">${escapeHtml(data.plan)}</span>` : ''}
-    </div>
-  `;
-
-  // Credits
-  const creditsEl = card.querySelector('.result-credits');
-  const hasBreakdown = data.vipCredit || data.giftCredit || data.purchaseCredit;
-  creditsEl.innerHTML = `
-    <div class="credit-badge">
-      <div class="credit-value">${data.credits !== 'N/A' ? formatNumber(data.credits) : '—'}</div>
-      <div class="credit-label">credits</div>
-      ${hasBreakdown ? `<div class="result-expiry">VIP: ${formatNumber(data.vipCredit || 0)} | Gift: ${formatNumber(data.giftCredit || 0)} | Buy: ${formatNumber(data.purchaseCredit || 0)}</div>` : ''}
-      ${data.expiry !== 'N/A' ? `<div class="result-expiry">Hết hạn: ${data.expiry}</div>` : ''}
-    </div>
-  `;
+  card.className = 'simple-result success';
+  card.innerHTML = `${escapeHtml(data.email)} | <strong style="color: #00D4AA;">${data.credits !== 'N/A' ? formatNumber(data.credits) : '0'} credit</strong>`;
 }
 
 function updateCardFail(index, email, error) {
   const card = document.getElementById(`result-${index}`);
   if (!card) return;
 
-  card.className = 'result-card fail';
-
-  // Status icon
-  const statusEl = card.querySelector('.result-status');
-  statusEl.className = 'result-status fail';
-  statusEl.innerHTML = `
-    <svg class="status-icon-svg" viewBox="0 0 18 18" fill="none">
-      <path d="M5 5l8 8M13 5l-8 8" stroke="#FF4757" stroke-width="2.5" stroke-linecap="round"/>
-    </svg>
-  `;
-
-  // Info
-  const infoEl = card.querySelector('.result-info');
-  infoEl.innerHTML = `
-    <div class="result-email">${escapeHtml(email)}</div>
-    <div class="result-detail error">${escapeHtml(error)}</div>
-  `;
-
-  // Clear credits
-  const creditsEl = card.querySelector('.result-credits');
-  creditsEl.innerHTML = '';
+  card.className = 'simple-result fail';
+  card.innerHTML = `${escapeHtml(email)} | <strong style="color: #FF4757;">${escapeHtml(error)}</strong>`;
 }
 
 // ============================
